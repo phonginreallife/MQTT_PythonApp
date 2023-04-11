@@ -1,0 +1,20 @@
+<RCC>
+  <qresource prefix="icons">
+    <file>1185864.png</file>
+    <file>icons8-circled-envelope-50.png</file>
+    <file>icons8-close-50.png</file>
+    <file>icons8-close-window-50.png</file>
+    <file>icons8-facebook-50.png</file>
+    <file>icons8-full-battery-80.png</file>
+    <file>icons8-home-page-50.png</file>
+    <file>icons8-iot-64.png</file>
+    <file>icons8-member-50.png</file>
+    <file>icons8-menu-50.png</file>
+    <file>icons8-minimize-window-50.png</file>
+    <file>icons8-restore-window-50.png</file>
+    <file>icons8-setting-64.png</file>
+    <file>low-battery.png</file>
+    <file>OOjs_UI_icon_close.svg.png</file>
+    <file>tải xuống.png</file>
+  </qresource>
+</RCC>
