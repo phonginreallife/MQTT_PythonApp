@@ -2,6 +2,9 @@ import sys
 import os
 from PySide2 import *
 from interface_ui import *
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QApplication, QMainWindow, QListWidgetItem
+import paho.mqtt.client as mqtt
 from PyQt5.QtWidgets import QMainWindow,QMessageBox, QSizeGrip, QSlider, QGridLayout, QLineEdit
 import firebase_admin
 from firebase_admin import  db
@@ -13,8 +16,8 @@ import time
 import csv
 import pandas as pd
 import numpy as np
-
-
+import pika
+from ast import literal_eval
 
 class Canvas(FigureCanvasQTAgg):
     def __init__(self):
@@ -22,29 +25,13 @@ class Canvas(FigureCanvasQTAgg):
         self.fig.patch.set_facecolor('none')
         super().__init__(self.fig)
         
-
-cred_obj = firebase_admin.credentials.Certificate(".\iotwatering-3893b-firebase-adminsdk-54pek-4524dc9c11.json")
-default_app = firebase_admin.initialize_app(cred_obj, {
-	'databaseURL':'https://iotwatering-3893b-default-rtdb.asia-southeast1.firebasedatabase.app'
-})
-
+run =  True
 x=[]
 y1=[]
 y2=[]
 x_value = 0
-refNhietDo = 0
-refDoAm = 0
-run = True
-refStatesuccess = 0
-datetime = db.reference("/DuLieuBoard/ThoiGian").get()
-temp_value_mode = db.reference("/DuLieuGuiXuongBoard/MODE").get()
-temp_value_type = db.reference("/ThongSoBoard/TYPE").get()
-float_fire_base = db.reference("/DuLieuBoard/FLOAT").get()
-speed_fire_base= db.reference("/DuLieuGuiXuongBoard/SPEED").get()
-mode_firebase = temp_value_mode
-type_firebase = temp_value_type
-speed_firebase = speed_fire_base
-state_current = db.reference("/DuLieuBoard/State").get()
+refNhietDo = '0'
+refDoAm = '0'
 ######################################################################################################
 ############################  CLASS MAIN HANDLE ######################################################
 ######################################################################################################
@@ -62,107 +49,12 @@ class mainHandle(Ui_MainWindow):
         self.homepage_buttom.clicked.connect(lambda: self.stackedWidget.setCurrentWidget(self.Home_page))
         self.members_buttom.clicked.connect(lambda: self.stackedWidget.setCurrentWidget(self.Members_page))
         self.setting_buttom.clicked.connect(lambda: self.stackedWidget.setCurrentWidget(self.Settings_pages))
-        self.horizontalSlider.setValue(int(db.reference("/DuLieuGuiXuongBoard/SPEED").get()/25)+1)
-        self.progressBar.setValue(int(db.reference("/DuLieuGuiXuongBoard/SPEED").get()))
         self.horizontalSlider.valueChanged.connect(self.setSpeed)
         self.Type_configure.hide()
         self.show_page_configure.hide()
         self.label_16.hide()
-        self.upDatesFirebase()
-        self.Mode_configure.currentTextChanged.connect(self.modeConfigureFix)
-
-
-    ######################################################################################################
-    ############################  HAM XU LY TAB SETTINGS  ################################################
-    ######################################################################################################
-    def modeConfigureFix(self):
-      if self.Mode_configure.currentText() == "Automation":
-               self.label_16.show()
-               self.Type_configure.show()
-               self.show_page_configure.show()
-               self.Type_configure.currentTextChanged.connect(self.pageConfigure)
-               db.reference("/DuLieuGuiXuongBoard/MODE").set(0)
-               global type_firebase
-               if (type_firebase == 1):
-                   self.Type_configure.setCurrentText("Time")
-                   self.pageConfigure()
-               else:
-                   self.Type_configure.setCurrentText("Temperature")
-                   self.pageConfigure()
-      else:
-          self.label_16.hide()
-          self.Type_configure.hide()
-          self.show_page_configure.hide()
-          db.reference("/DuLieuGuiXuongBoard/MODE").set(1)
-    ######################################################################################################
-    ############################  HAM HIEN THI INTERFACES THEO LUA CHON ##################################
-    ######################################################################################################
-    def pageConfigure(self):
-        if self.Type_configure.currentText() == "Time":
-            self.show_page_configure.setCurrentWidget(self.page_2)
-            self.confirm_time.clicked.connect(self.firebase_time_set)
-        if self.Type_configure.currentText() == "Temperature":
-            self.show_page_configure.setCurrentWidget(self.page)
-            self.confirm_temp.clicked.connect(self.firebase_temp_set)
-    ######################################################################################################
-    ############################  HAM XU LY DU LIEU CAP NHAT THEO NHIET DO ###############################
-    ######################################################################################################
-    def firebase_temp_set(self):
-        if self.temp_min.displayText() < self.temp_max.displayText():
-            db.reference("/ThongSoBoard/NhietDoMax").set(int(self.temp_max.displayText()))
-            db.reference("/ThongSoBoard/NhietDoMin").set(int(self.temp_min.displayText()))
-            db.reference("/DuLieuGuiXuongBoard/StateDown").set(1)
-            for i in range(10):
-                global refStatesuccess
-                time.sleep(1)
-                if refStatesuccess == 1:
-                    self.text_complete.setText("<font color='green'>updated successfully!</font>")
-                    db.reference("/DuLieuGuiXuongBoard/StateDown").set(0)
-                    break
-                else:
-                    self.text_complete.setText("<font color='red'>error! can't detect your divice</font>")
-            db.reference("/ThongSoBoard/TYPE").set(0)
-        else:
-            self.show_warning()
-
-    ######################################################################################################
-    ############################  HAM XU LY DU LIEU CAP NHAT THEO THOI GIAN ##############################
-    ######################################################################################################
-    def firebase_time_set(self):
-        x = int(self.hh_delivery.currentText())*3600 + int(self.mm_delivery.currentText())*60 + int(self.ss_delivery.currentText())
-        y = int(self.hh_receive.currentText())*3600 + int(self.mm_receive.currentText())*60 + int(self.ss_receive.currentText())
-        if y > x:
-            self.time_start = str(self.hh_delivery.currentText()) + ":" + str(
-                self.mm_delivery.currentText())+ ":" + str(self.ss_delivery.currentText())
-            self.time_end = str(self.hh_receive.currentText())+":" + str(self.mm_receive.currentText())+ ":" + str(self.ss_receive.currentText())
-            db.reference("/ThongSoBoard/TimeStart").set(self.time_start)
-            db.reference("/ThongSoBoard/TimeStop").set(self.time_end)
-            db.reference("/DuLieuGuiXuongBoard/StateDown").set(1)
-            for i in range(10):
-                global refStatesuccess
-                time.sleep(1)
-                if refStatesuccess == 1:
-                    self.text_complete_2.setText("<font color='green'>updated successfully!</font>")
-                    db.reference("/DuLieuGuiXuongBoard/StateDown").set(0)
-                    break
-                else:
-                    self.text_complete_2.setText("<font color='red'>Error! Can't detect your divice</font>")
-            db.reference("/ThongSoBoard/TYPE").set(1)
-        else:
-            self.show_warning()
-
-    ######################################################################################################
-    ############################  HAM HIEN THI WARNING KHI NHAP SAI  #####################################
-    ######################################################################################################
-    def show_warning(self):
-        self.msg = QMessageBox()
-        self.msg.setIcon(QMessageBox.Warning)
-        self.msg.setText("Please enter values correctly!")
-        self.msg.setWindowTitle("Error")
-        self.msg.setStandardButtons(QMessageBox.Yes| QMessageBox.Cancel)
-        retval = self.msg.exec_()
-        if retval == QMessageBox.Yes or QMessageBox.Cancel:
-            pass
+        self.Led_control.clicked.connect(self.publicer)
+        self.Led_control_1.clicked.connect(self.publicer)
     ######################################################################################################
     ############################  HAM XU LY THU PHONG INTERFACES  ########################################
     ######################################################################################################
@@ -191,7 +83,6 @@ class mainHandle(Ui_MainWindow):
             global  run
             run = False
             MainWindow.close()
-
     ######################################################################################################
     ############################  HAM TAT HE THONG #######################################################
     ######################################################################################################
@@ -221,25 +112,24 @@ class mainHandle(Ui_MainWindow):
     def animate(self,i):
             global refNhietDo
             global refDoAm
-            refNhietDo = db.reference("/DuLieuBoard/NhietDo").get()
-            refDoAm = db.reference("/DuLieuBoard/DoAm").get()
             global data
             global x
             global y1
             global y2
             x.append(QTime.currentTime().toString('hh:mm:ss'))
+            refNhietDo = int(refNhietDo)
+            refDoAm = int(refDoAm) 
             y1.append(refNhietDo)
             y2.append(refDoAm)
-
-            if(len(x)> 4):
-                for m in range(len(x)-4):
+            if(len(x)> 10):
+                for m in range(len(x)):
                     x.pop(m)
                     y1.pop(m)
                     y2.pop(m)
             self.canv.ax.cla()
             self.canv.ax2.cla()
-            self.canv.ax.set_ylim([refNhietDo - 5, refNhietDo + 20])
-            self.canv.ax2.set_ylim([refDoAm - 5, refDoAm + 5])
+            self.canv.ax.set_ylim([refNhietDo - 10, refNhietDo + 40])
+            self.canv.ax2.set_ylim([refDoAm - 10, refDoAm + 10])
             #####################################
             ymax1 = max(y1)
             xpos1 = y1.index(ymax1)
@@ -263,8 +153,8 @@ class mainHandle(Ui_MainWindow):
             #####################################
             self.canv.ax2.plot(x, y2, color='blue',marker='^',label='Humidity',linewidth=2)
             self.canv.ax2.tick_params(axis='y', labelcolor='blue')
-            self.canv.ax.set_ylabel(' Temperature ',fontweight ="bold",color='black')
-            self.canv.ax2.set_ylabel(' Humidity ',fontweight ="bold",color='black')
+            self.canv.ax.set_ylabel('  ',fontweight ="bold",color='black')
+            self.canv.ax2.set_ylabel('  ',fontweight ="bold",color='black')
             self.canv.ax2.legend(loc="upper left", shadow=True, fontsize=15)
             self.canv.ax.legend(loc="upper right", shadow=True, fontsize=15)
             self.canv.ax.grid(color='White', alpha=1, linestyle='-', linewidth=2)
@@ -277,83 +167,82 @@ class mainHandle(Ui_MainWindow):
     ######################################################################################################
     def updateLabel(self):  # this func try to update the status of label if it change
         ''' Ham cap nhat giao dien hien tai'''
-        currentTime = QTime.currentTime()
-        displayTxt = currentTime.toString('hh:mm:ss')
-        self.time_on_sys.setText(displayTxt)
-        global datetime
-        x = datetime.split()
-        self.time_on_board.setText(x[0])
-        self.day_on_board.setText(x[1])
-        self.day_on_sys.setText(x[1])
-        global speed_firebase
-        global speed_fire_base
-        speed_fire_base = db.reference("/DuLieuGuiXuongBoard/SPEED").get()
-        if speed_firebase != speed_fire_base:
-            speed_firebase = speed_fire_base
-            self.valueChange()
-        float_fire_base = db.reference("/DuLieuBoard/FLOAT").get()
-        if float_fire_base == 1:
-            self.stackedWidget_2.setCurrentWidget(self.page_full)
-            self.valueChange()
-        if float_fire_base == 0:
-            self.stackedWidget_2.setCurrentWidget(self.page_low)
-            self.stopSpeed()
-    ######################################################################################################
-    ############################  HAM CAP NHAT DU LIEU MUC NUOC TREN FIREBASE  ###########################
-    ######################################################################################################
-    def checkWaterLevel(self):
-        '''Ham cap nhat du lieu muc nuoc tren firebase'''
-        global speed_firebase
-        if float_fire_base == 1:
-            self.stackedWidget.setCurrentWidget(self.page_full)
-            self.horizontalSlider.setValue(int(speed_firebase / 25) + 1)
-        else:
-            self.stackedWidget.setCurrentWidget(self.page_low)
-            self.horizontalSlider.setValue(1)
+        global refDoAm
+        global refNhietDo
+        self.label_6.setText(str(refNhietDo))
+        self.label_7.setText(str(refDoAm))
 
-    ######################################################################################################
-    ############################  HAM CAP NHAT DU LIEU FIREBASE  #########################################
-    ######################################################################################################
-    def upDatesFirebase(self):
-        '''Ham cap nhat du lieu firebase'''
-        global mode_firebase
-        global type_firebase
-        global float_fire_base
-        if (mode_firebase == 0):
-            self.Mode_configure.setCurrentText("Automation")
-            self.modeConfigureFix()
-        else:
-            self.Mode_configure.setCurrentText("Manual")
-            self.modeConfigureFix()
-        self.checkWaterLevel()
+    def publicer(self):
+                # If you want to have a more secure SSL authentication, use ExternalCredentials object instead
+                credentials = pika.PlainCredentials(username='thebigrabbit', password='MyS3cur3Passwor_d', erase_on_connect=True)
+                parameters = pika.ConnectionParameters(host='18.222.8.192', port=5672, virtual_host='cherry_broker', credentials=credentials)
+
+                # We are using BlockingConnection adapter to start a session. It uses a procedural approach to using Pika and has most of the asynchronous expectations removed
+                connection = pika.BlockingConnection(parameters)
+                # A channel provides a wrapper for interacting with RabbitMQ
+                channel = connection.channel()
+                message = 'Hello, world!'               
+                # For the sake of simplicity, we are not declaring an exchange, so the subsequent publish call will be sent to a Default exchange that is predeclared by the broker
+                # while True:
+                exchange_name = 'led_data'
+                channel.exchange_declare(exchange=exchange_name, exchange_type='topic')
+                routing_key = 'my_topic_key'
+                channel.basic_publish(exchange=exchange_name, routing_key=routing_key, body=message)
+                    # Print the message for debugging purposes
+                print(f"Published: {message}")
+
+                    # Wait for some time before publishing the next message
+                # time.sleep(1)
+                # Safely disconnect from RabbitMQ
+                connection.close() 
     ######################################################################################################
     ############################  CLASS RUN ##############################################################
     ######################################################################################################
 class Runnable(QRunnable):
     def __init__(self):
         super().__init__()
-        self.fieldnames = ["x_value","NhietDo","DoAm"]
-        with open('data.csv','w') as csv_file:
-            self.csv_writer = csv.DictWriter(csv_file,fieldnames=self.fieldnames)
-            self.csv_writer.writeheader()
+    
     def run(self):
+        def main_mqtt(self):
+            credentials = pika.PlainCredentials('thebigrabbit', 'MyS3cur3Passwor_d')
+            parameters = pika.ConnectionParameters(host='18.222.8.192', port=5672, virtual_host='cherry_broker', credentials=credentials)    
+            connection = pika.BlockingConnection(parameters)
+            channel = connection.channel()
+            exchange_name = 'topic_logs' 
+            channel.exchange_declare(exchange='topic_logs', exchange_type='topic')
+            routing_key = 'my.topic.key'
+            queue_name = 'topic_logs'
+            channel.queue_declare(queue_name)
+            channel.queue_bind(exchange=exchange_name, queue=queue_name, routing_key=routing_key)
+            # Since RabbitMQ works asynchronously, every time you receive a message, a callback function is called.
+            def callback(ch, method, properties, body):
+                #print("Received message: %s" % body)
+                body = literal_eval(body.decode('utf-8'))
+                global refNhietDo
+                global refDoAm
+                refNhietDo = body['temp']
+                refDoAm = body['hum']
+            # Consume a message from a queue. 
+            channel.basic_consume(queue=queue_name, on_message_callback=callback, auto_ack=True)
+            print(' [*] Waiting for messages. To exit press CTRL+C')          
+            # Start listening for messages to consume
+            channel.start_consuming()
         while run:
-            time.sleep(1)
-            global refStatesuccess
-            global datetime
-            global mode_firebase
-            global type_firebase
-            global temp_value_type
-            global temp_value_mode
-            global float_fire_base
-            datetime = db.reference("/DuLieuBoard/ThoiGian").get()
-            refStatesuccess = db.reference("/DuLieuBoard/Statesuccess").get()
+            # time.sleep(1)
+            try:
+                main_mqtt(self)
+            except KeyboardInterrupt:
+                print("Interrupted")
+                try:
+                    sys.exit(0)
+                except SystemExit:
+                    os._exit(0)
     ######################################################################################################
     #########################################  MAIN ######################################################
     ######################################################################################################
     ######################################################################################################
     ######################################################################################################
-if __name__ == "__main__":
+if __name__ == "__main__":  
     pool = QThreadPool.globalInstance()
     runnable = Runnable()
     pool.start(runnable)
