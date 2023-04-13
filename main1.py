@@ -50,11 +50,10 @@ class mainHandle(Ui_MainWindow):
         self.members_buttom.clicked.connect(lambda: self.stackedWidget.setCurrentWidget(self.Members_page))
         self.setting_buttom.clicked.connect(lambda: self.stackedWidget.setCurrentWidget(self.Settings_pages))
         self.horizontalSlider.valueChanged.connect(self.setSpeed)
-        self.Type_configure.hide()
-        self.show_page_configure.hide()
-        self.label_16.hide()
-        self.Led_control.clicked.connect(self.publicer)
-        self.Led_control_1.clicked.connect(self.publicer)
+        self.LedON.clicked.connect(self.ImageLedON)
+        self.LedOFF.clicked.connect(self.ImageLedOFF)
+        self.LedON_2.clicked.connect(self.ImageLedON_2)
+        self.LedOFF_2.clicked.connect(self.ImageLedOFF_2)
     ######################################################################################################
     ############################  HAM XU LY THU PHONG INTERFACES  ########################################
     ######################################################################################################
@@ -122,7 +121,7 @@ class mainHandle(Ui_MainWindow):
             y1.append(refNhietDo)
             y2.append(refDoAm)
             if(len(x)> 10):
-                for m in range(len(x)):
+                for m in range(10):
                     x.pop(m)
                     y1.pop(m)
                     y2.pop(m)
@@ -170,31 +169,71 @@ class mainHandle(Ui_MainWindow):
         global refDoAm
         global refNhietDo
         self.label_6.setText(str(refNhietDo))
-        self.label_7.setText(str(refDoAm))
-
-    def publicer(self):
+        self.label_7.setText(str(refDoAm)) 
+    def ImageLedON(self):
+         self.stackedWidget_2.setCurrentWidget(self.page_3)
+         self.publicerLed1(1)
+    def ImageLedOFF(self):
+         self.stackedWidget_2.setCurrentWidget(self.page_4)
+         self.publicerLed1(0)        
+    def ImageLedON_2(self):
+         self.stackedWidget_3.setCurrentWidget(self.page_6)
+         self.publicerLed2(1)
+    def ImageLedOFF_2(self):
+         self.stackedWidget_3.setCurrentWidget(self.page_5)
+         self.publicerLed2(0)            
+    def publicerLed1(self, check):
+                self.check = check
                 # If you want to have a more secure SSL authentication, use ExternalCredentials object instead
                 credentials = pika.PlainCredentials(username='thebigrabbit', password='MyS3cur3Passwor_d', erase_on_connect=True)
-                parameters = pika.ConnectionParameters(host='18.222.8.192', port=5672, virtual_host='cherry_broker', credentials=credentials)
+                parameters = pika.ConnectionParameters(host='18.222.254.163', port=5672, virtual_host='cherry_broker', credentials=credentials)
+                # We are using BlockingConnection adapter to start a session. It uses a procedural approach to using Pika and has most of the asynchronous expectations removed
+                connection = pika.BlockingConnection(parameters)
+                # A channel provides a wrapper for interacting with RabbitMQ
+                channel = connection.channel()
+                if self.check == 1:
+                    message = '1'
+                else:
+                     message = '0'               
+                # For the sake of simplicity, we are not declaring an exchange, so the subsequent publish call will be sent to a Default exchange that is predeclared by the broker
+                # while True:
+                exchange_name = 'led1_data'
+                channel.exchange_declare(exchange=exchange_name, exchange_type='topic')
+                routing_key = 'my_topic_key'
+                channel.basic_publish(exchange=exchange_name, routing_key=routing_key, body=message)
+                    # Print the message for debugging purposes
+                print(f"Published Led 1 Data: {message}")
+                    # Wait for some time before publishing the next message
+                # time.sleep(1)
+                # Safely disconnect from RabbitMQ
+                connection.close()
+    def publicerLed2(self, check):
+                self.check = check
+                # If you want to have a more secure SSL authentication, use ExternalCredentials object instead
+                credentials = pika.PlainCredentials(username='thebigrabbit', password='MyS3cur3Passwor_d', erase_on_connect=True)
+                parameters = pika.ConnectionParameters(host='18.222.254.163', port=5672, virtual_host='cherry_broker', credentials=credentials)
 
                 # We are using BlockingConnection adapter to start a session. It uses a procedural approach to using Pika and has most of the asynchronous expectations removed
                 connection = pika.BlockingConnection(parameters)
                 # A channel provides a wrapper for interacting with RabbitMQ
                 channel = connection.channel()
-                message = 'Hello, world!'               
+                if self.check == 1:
+                    message = '1'
+                else:
+                     message = '0'               
                 # For the sake of simplicity, we are not declaring an exchange, so the subsequent publish call will be sent to a Default exchange that is predeclared by the broker
                 # while True:
-                exchange_name = 'led_data'
+                exchange_name = 'led2_data'
                 channel.exchange_declare(exchange=exchange_name, exchange_type='topic')
                 routing_key = 'my_topic_key'
                 channel.basic_publish(exchange=exchange_name, routing_key=routing_key, body=message)
                     # Print the message for debugging purposes
-                print(f"Published: {message}")
+                print(f"Published Led 2 Data: {message}")
 
                     # Wait for some time before publishing the next message
                 # time.sleep(1)
                 # Safely disconnect from RabbitMQ
-                connection.close() 
+                connection.close()              
     ######################################################################################################
     ############################  CLASS RUN ##############################################################
     ######################################################################################################
@@ -205,7 +244,7 @@ class Runnable(QRunnable):
     def run(self):
         def main_mqtt(self):
             credentials = pika.PlainCredentials('thebigrabbit', 'MyS3cur3Passwor_d')
-            parameters = pika.ConnectionParameters(host='18.222.8.192', port=5672, virtual_host='cherry_broker', credentials=credentials)    
+            parameters = pika.ConnectionParameters(host='18.222.254.163', port=5672, virtual_host='cherry_broker', credentials=credentials)    
             connection = pika.BlockingConnection(parameters)
             channel = connection.channel()
             exchange_name = 'topic_logs' 
