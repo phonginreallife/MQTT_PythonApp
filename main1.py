@@ -16,8 +16,8 @@ import time
 import csv
 import pandas as pd
 import numpy as np
-import pika
-from ast import literal_eval
+import json
+import paho.mqtt.client as mqtt
 
 class Canvas(FigureCanvasQTAgg):
     def __init__(self):
@@ -30,8 +30,17 @@ x=[]
 y1=[]
 y2=[]
 x_value = 0
-refNhietDo = '0'
-refDoAm = '0'
+refNhietDo = 0
+refDoAm = 0
+broker_address = "broker.emqx.io"
+broker_port = 1883
+username = "emqx"
+password = "public"
+sub_topic = "sensor_data"
+pub_led_topic = "led/data"
+pub_fan_topic = "fan_speed"
+data_on = "ON"
+data_off = "OFF"
 ######################################################################################################
 ############################  CLASS MAIN HANDLE ######################################################
 ######################################################################################################
@@ -49,13 +58,12 @@ class mainHandle(Ui_MainWindow):
         self.homepage_buttom.clicked.connect(lambda: self.stackedWidget.setCurrentWidget(self.Home_page))
         self.members_buttom.clicked.connect(lambda: self.stackedWidget.setCurrentWidget(self.Members_page))
         self.setting_buttom.clicked.connect(lambda: self.stackedWidget.setCurrentWidget(self.Settings_pages))
-        self.horizontalSlider.valueChanged.connect(self.setSpeed)
-        self.LedON.clicked.connect(self.ImageLedON)
-        self.LedOFF.clicked.connect(self.ImageLedOFF)
-        self.LedON_2.clicked.connect(self.ImageLedON_2)
-        self.LedOFF_2.clicked.connect(self.ImageLedOFF_2)
+        self.LedON.clicked.connect(self.led_on)
+        self.LedOFF.clicked.connect(self.led_off)
+        self.LedON_2.clicked.connect(self.fan_on)
+        self.LedOFF_2.clicked.connect(self.fan_off)
     ######################################################################################################
-    ############################  HAM XU LY THU PHONG INTERFACES  ########################################
+    ############################  HAM XU LY THU PHONG INTERFACE  ########################################
     ######################################################################################################
     def restore_or_max_window(self):
         if MainWindow.isMaximized():
@@ -64,7 +72,7 @@ class mainHandle(Ui_MainWindow):
             MainWindow.showMaximized()
 
     ######################################################################################################
-    ############################  HAM XU LY THU NHO INTERFACES  ##########################################
+    ############################  HAM XU LY THU NHO INTERFACE  ##########################################
     ######################################################################################################
     def minimize_handle(self):
         MainWindow.showMinimized()
@@ -82,29 +90,7 @@ class mainHandle(Ui_MainWindow):
             global  run
             run = False
             MainWindow.close()
-    ######################################################################################################
-    ############################  HAM TAT HE THONG #######################################################
-    ######################################################################################################
-    def stopSpeed(self):
-        self.horizontalSlider.setValue(1)
-        self.progressBar.setValue(0)
 
-    ######################################################################################################
-    ############################  HAM XU LY DU LIEU CHO TOC DO HE THONG ##################################
-    ######################################################################################################
-    def setSpeed(self):
-        if self.horizontalSlider.value() != 1:
-            self.progressBar.setValue((self.horizontalSlider.value()-1) * 25)
-            db.reference("/DuLieuGuiXuongBoard/SPEED").set(int((self.horizontalSlider.value() - 1) * 25))
-        else:
-            self.stopSpeed()
-    ######################################################################################################
-    ############################  HAM XU LY THANH SLIDE POWER ############################################
-    ######################################################################################################
-    def valueChange(self):
-            global speed_firebase
-            self.horizontalSlider.setValue(int((speed_firebase / 25) + 1))
-            self.progressBar.setValue((self.horizontalSlider.value()-1)*25)
     ######################################################################################################
     ############################  HAM XU LY DO THI #######################################################
     ######################################################################################################
@@ -116,15 +102,15 @@ class mainHandle(Ui_MainWindow):
             global y1
             global y2
             x.append(QTime.currentTime().toString('hh:mm:ss'))
-            refNhietDo = int(refNhietDo)
-            refDoAm = int(refDoAm) 
+            refNhietDo = float(refNhietDo)
+            refDoAm = float(refDoAm) 
             y1.append(refNhietDo)
             y2.append(refDoAm)
-            if(len(x)> 10):
-                for m in range(10):
-                    x.pop(m)
-                    y1.pop(m)
-                    y2.pop(m)
+            if len(x) >= 10:
+                x.pop(0)
+                y1.pop(0)
+                y2.pop(0)
+                    
             self.canv.ax.cla()
             self.canv.ax2.cla()
             self.canv.ax.set_ylim([refNhietDo - 10, refNhietDo + 40])
@@ -170,70 +156,36 @@ class mainHandle(Ui_MainWindow):
         global refNhietDo
         self.label_6.setText(str(refNhietDo))
         self.label_7.setText(str(refDoAm)) 
-    def ImageLedON(self):
+    def led_on(self):
          self.stackedWidget_2.setCurrentWidget(self.page_3)
-         self.publicerLed1(1)
-    def ImageLedOFF(self):
+         self.publish_to_mqtt_broker(data_on, broker_address, broker_port, username, password, pub_led_topic)
+    def led_off(self):
          self.stackedWidget_2.setCurrentWidget(self.page_4)
-         self.publicerLed1(0)        
-    def ImageLedON_2(self):
+         self.publish_to_mqtt_broker(data_off, broker_address, broker_port, username, password, pub_led_topic)
+    def fan_on(self):
          self.stackedWidget_3.setCurrentWidget(self.page_6)
-         self.publicerLed2(1)
-    def ImageLedOFF_2(self):
+         self.publish_to_mqtt_broker(40, broker_address, broker_port, username, password, pub_fan_topic)
+    def fan_off(self):
          self.stackedWidget_3.setCurrentWidget(self.page_5)
-         self.publicerLed2(0)            
-    def publicerLed1(self, check):
-                self.check = check
-                # If you want to have a more secure SSL authentication, use ExternalCredentials object instead
-                credentials = pika.PlainCredentials(username='thebigrabbit', password='MyS3cur3Passwor_d', erase_on_connect=True)
-                parameters = pika.ConnectionParameters(host='18.222.254.163', port=5672, virtual_host='cherry_broker', credentials=credentials)
-                # We are using BlockingConnection adapter to start a session. It uses a procedural approach to using Pika and has most of the asynchronous expectations removed
-                connection = pika.BlockingConnection(parameters)
-                # A channel provides a wrapper for interacting with RabbitMQ
-                channel = connection.channel()
-                if self.check == 1:
-                    message = '1'
-                else:
-                     message = '0'               
-                # For the sake of simplicity, we are not declaring an exchange, so the subsequent publish call will be sent to a Default exchange that is predeclared by the broker
-                # while True:
-                exchange_name = 'led1_data'
-                channel.exchange_declare(exchange=exchange_name, exchange_type='topic')
-                routing_key = 'my_topic_key'
-                channel.basic_publish(exchange=exchange_name, routing_key=routing_key, body=message)
-                    # Print the message for debugging purposes
-                print(f"Published Led 1 Data: {message}")
-                    # Wait for some time before publishing the next message
-                # time.sleep(1)
-                # Safely disconnect from RabbitMQ
-                connection.close()
-    def publicerLed2(self, check):
-                self.check = check
-                # If you want to have a more secure SSL authentication, use ExternalCredentials object instead
-                credentials = pika.PlainCredentials(username='thebigrabbit', password='MyS3cur3Passwor_d', erase_on_connect=True)
-                parameters = pika.ConnectionParameters(host='18.222.254.163', port=5672, virtual_host='cherry_broker', credentials=credentials)
+         self.publish_to_mqtt_broker(20, broker_address, broker_port, username, password, pub_fan_topic)   
+    
+    def publish_to_mqtt_broker(self, data, broker_address, broker_port, username, password, topic):
+        def on_connect(client, userdata, flags, rc):
+            if rc == 0:
+                print("Connected to MQTT broker")
+            else:
+                print("Failed to connect to MQTT broker with result code " + str(rc))
 
-                # We are using BlockingConnection adapter to start a session. It uses a procedural approach to using Pika and has most of the asynchronous expectations removed
-                connection = pika.BlockingConnection(parameters)
-                # A channel provides a wrapper for interacting with RabbitMQ
-                channel = connection.channel()
-                if self.check == 1:
-                    message = '1'
-                else:
-                     message = '0'               
-                # For the sake of simplicity, we are not declaring an exchange, so the subsequent publish call will be sent to a Default exchange that is predeclared by the broker
-                # while True:
-                exchange_name = 'led2_data'
-                channel.exchange_declare(exchange=exchange_name, exchange_type='topic')
-                routing_key = 'my_topic_key'
-                channel.basic_publish(exchange=exchange_name, routing_key=routing_key, body=message)
-                    # Print the message for debugging purposes
-                print(f"Published Led 2 Data: {message}")
+        client = mqtt.Client()
+        client.username_pw_set(username, password)  # Set the username and password
+        client.on_connect = on_connect
+        client.connect(broker_address, broker_port, 60)
+        client.loop_start()
 
-                    # Wait for some time before publishing the next message
-                # time.sleep(1)
-                # Safely disconnect from RabbitMQ
-                connection.close()              
+        client.publish(topic, data)
+
+        client.loop_stop()
+        client.disconnect()                           
     ######################################################################################################
     ############################  CLASS RUN ##############################################################
     ######################################################################################################
@@ -243,29 +195,28 @@ class Runnable(QRunnable):
     
     def run(self):
         def main_mqtt(self):
-            credentials = pika.PlainCredentials('thebigrabbit', 'MyS3cur3Passwor_d')
-            parameters = pika.ConnectionParameters(host='18.222.254.163', port=5672, virtual_host='cherry_broker', credentials=credentials)    
-            connection = pika.BlockingConnection(parameters)
-            channel = connection.channel()
-            exchange_name = 'topic_logs' 
-            channel.exchange_declare(exchange='topic_logs', exchange_type='topic')
-            routing_key = 'my.topic.key'
-            queue_name = 'topic_logs'
-            channel.queue_declare(queue_name)
-            channel.queue_bind(exchange=exchange_name, queue=queue_name, routing_key=routing_key)
-            # Since RabbitMQ works asynchronously, every time you receive a message, a callback function is called.
-            def callback(ch, method, properties, body):
-                #print("Received message: %s" % body)
-                body = literal_eval(body.decode('utf-8'))
-                global refNhietDo
+            global topic
+            # Define the callback function for handling incoming messages
+            def on_message(client, userdata, msg):
                 global refDoAm
-                refNhietDo = body['temp']
-                refDoAm = body['hum']
-            # Consume a message from a queue. 
-            channel.basic_consume(queue=queue_name, on_message_callback=callback, auto_ack=True)
-            print(' [*] Waiting for messages. To exit press CTRL+C')          
-            # Start listening for messages to consume
-            channel.start_consuming()
+                global refNhietDo
+                payload = msg.payload.decode()
+                # Split the payload into temperature and humidity values
+                sensor_data = json.loads(payload)
+                refNhietDo = sensor_data['temp']
+                refDoAm = sensor_data['hum']
+            # Create an MQTT client and set the callback function
+            client = mqtt.Client()
+            client.on_message = on_message
+
+            # Set username and password
+            client.username_pw_set(username, password)
+            # Connect to the broker and subscribe to the topic
+            client.connect(broker_address, broker_port)
+            client.subscribe(sub_topic)
+
+            # Start the MQTT client loop to handle incoming messages
+            client.loop_start()
         while run:
             # time.sleep(1)
             try:
