@@ -19,7 +19,8 @@ Requirements:
 
  Guiding: 
  
-•	Step 1: Open CMD in your computer, you’d better create a new folder and store inside it, this will prevent any future confusion. git clone https://github.com/phonginreallife/MQTT_PythonApp.git 
+•	Step 1: Open CMD in your computer, you’d better create a new folder and store inside it, this will prevent any future confusion. 
+   git clone https://github.com/phonginreallife/MQTT_PythonApp.git 
 
 •	Step 2: Open the repository and run main file: python main.py
 
