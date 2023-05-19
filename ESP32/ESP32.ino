@@ -2,9 +2,11 @@
 #include <PubSubClient.h>
 #include <DHT.h>
 
-
+// Thông tin mạng WiFi
 const char* ssid = "Bamos Coffee";
 const char *password = "bamosxinchao";
+
+// Thông tin MQTT broker
 const char *mqtt_broker = "broker.emqx.io";
 const char *mqtt_username = "emqx";
 const char *mqtt_password = "public";
@@ -16,22 +18,29 @@ const char* mqtt_led = "led/data";
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-// Replace with your DHT11 sensor pin
+// Chân cảm biến DHT11
 #define DHTPIN 15  
 #define DHTTYPE DHT11
 DHT dht(DHTPIN, DHTTYPE);
 
+
+// Cấu hình PWM cho động cơ quạt
 const int freq = 30000;
 const int pwmChannel = 0;
 const int resolution = 8;
 float fanSpeedValue = 0.0; 
+
+// Chân kết nối đến động cơ quạt
 int dutyCycle;
 int motor1Pin1 = 27; 
 int motor1Pin2 = 26; 
 int enable1Pin = 14;
+
+// Chân kết nối đèn LED
 int ledPin = 2;
 
 void connectToWiFi() {
+    // Kết nối tới mạng WiFi
   Serial.print("Connecting to WiFi...");
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
@@ -42,6 +51,7 @@ void connectToWiFi() {
 }
 
 void connectToMQTTBroker() {
+   // Kết nối tới MQTT broker
     Serial.print("Connecting to MQTT broker...");
     if (client.connect("ESP32")) {
       Serial.println("\nConnected to MQTT broker");
@@ -55,6 +65,7 @@ void connectToMQTTBroker() {
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
+   // Xử lý callback khi nhận được tin nhắn từ MQTT
   if (strcmp(topic, mqtt_value) == 0) {
     fanCallback(topic, payload, length);
   } else if (strcmp(topic, mqtt_led) == 0) {
@@ -62,6 +73,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
 }
 void ledCallback(char* topic, byte* payload, unsigned int length) {
+  // Xử lý callback cho điều khiển LED
   Serial.print("LED control message received on topic: ");
   Serial.println(topic);
   String message = "";
@@ -81,13 +93,13 @@ void ledCallback(char* topic, byte* payload, unsigned int length) {
   }
 }
 void fanCallback(char* topic, byte* payload, unsigned int length) {
-  // Handle incoming MQTT messages
+  // Xử lý callback cho điều khiển tốc độ quạt
   String message;
   for (int i = 0; i < length; i++) {
     message += (char)payload[i];
   }
 
-  // Print the received message
+  // In ra mesage nhận được
   Serial.println(message);
   fanSpeedValue = atof(message.c_str());
   
@@ -95,6 +107,7 @@ void fanCallback(char* topic, byte* payload, unsigned int length) {
 }
 
 void publishData(float temperature, float humidity) {
+   // Gửi dữ liệu nhiệt độ và độ ẩm lên MQTT broker
   char payload[50];
   sprintf(payload, "{\"temp\":%.2f,\"hum\":%.2f}", temperature, humidity);
   client.publish(mqtt_topic, payload);
@@ -102,6 +115,7 @@ void publishData(float temperature, float humidity) {
 }
 
 void setup() {
+   // Thiết lập ban đầu
   Serial.begin(115200);
   
   pinMode(motor1Pin1, OUTPUT);
@@ -122,6 +136,7 @@ void setup() {
 }
 
 void loop() {
+  // Vòng lặp chính
   if (!client.connected()) {
     connectToMQTTBroker();
   }
@@ -133,10 +148,10 @@ void loop() {
   delay(1000);
 
   if(fanSpeedValue>30){
-     dutyCycle = (fanSpeedValue * 255) / 100+125; // calculate duty cycle based on fan speed percentage
+     dutyCycle = (fanSpeedValue * 255) / 100+125; // Tính toán giá trị tốc độ động cơ quạt dựa vào dữ liệu nhận được
   }
   else{
-     dutyCycle = (fanSpeedValue * 255) / 100+75; // calculate duty cycle based on fan speed percentage
+     dutyCycle = (fanSpeedValue * 255) / 100+75; // Tính toán giá trị tốc độ động cơ quạt dựa vào dữ liệu nhận được
 
  }
    ledcWrite(pwmChannel, dutyCycle);
@@ -154,6 +169,6 @@ void loop() {
   publishData(temperature, humidity);
 
 
-  // Delay before publishing the next set of data
+  // Delay trước khi publiing new data
   delay(1000);
 }
