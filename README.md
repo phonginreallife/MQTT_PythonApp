@@ -9,6 +9,8 @@ Prerequisites:
 •	python 3.10.x 
 •	Adruino IDE 
 
+
+
 Requirements:
 
 •	pip install PySide2 
@@ -18,6 +20,9 @@ Requirements:
 •	pip install matplotlib
 
 •	pip install PyQt5
+
+
+
 
  Guiding: 
  
@@ -31,5 +36,8 @@ Requirements:
 •	Step 3: Connect your devices and sensors with ESP32 and then connect with your Computer: 
 
 Pushing .ion code to ESP32, when you saw the sending message (include sent temperature, huminity as well as recieved fan speed),mean you have successfully setup it. 
+
+
+
 
 Important Note: Changing wifi SSID and password in ESP32 code.
