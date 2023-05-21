@@ -7,6 +7,7 @@ ESP32 connects DHT11 as well as Fan engine to send temp, hum and receive fan spe
 Prerequisites:
 
 •	python 3.10.x 
+
 •	Adruino IDE 
 
 
