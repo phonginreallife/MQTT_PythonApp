@@ -1,8 +1,7 @@
 MQTT_PythonApp 
 
 
-This app uses Pyside2, Qt Designer designing a interface to control temperature, humidity, led and fan engine parallelly. The App communicate with ESP32 through MQTT protocols. 
-ESP32 connects DHT11 as well as Fan engine to send temp, hum and receive fan speed data through MQTT broker. 
+This app uses Pyside2, Qt Designer designing a interface to control temperature, humidity, led and fan engine parallelly. It will communicate with ESP32 through MQTT protocols. ESP32 connects DHT11 as well as Fan engine to send temp, hum and receive fan speed data from MQTT broker.
 
 Prerequisites:
 
